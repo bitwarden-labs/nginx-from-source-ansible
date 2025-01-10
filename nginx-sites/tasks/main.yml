@@ -1,0 +1,67 @@
+---
+- name: Add nginx sites to /etc/hosts
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    state: present
+    line: "{{ item.ip }} {{ item.domain }}"
+  with_items: "{{ nginx_hosting.sites }}"
+  when: item['static-files'] == false
+
+- name: Discover websites in /etc/nginx/sites-available
+  become: true
+  block:
+    - name: Collect sites
+      ansible.builtin.find:
+        paths: /etc/nginx/sites-available
+        patterns: "*.conf"
+        follow: yes
+        recurse: no
+      register: nginx_sites
+
+    - name: Show found sites
+      ansible.builtin.debug:
+        msg: "{{ nginx_sites }}"
+
+- name: Manage Let's Encrypt certs for each site
+  become: true
+  block:
+    - name: Check for certificate renewal
+      ansible.builtin.command: certbot renew --dry-run
+      register: certbot_dry_run_output
+      changed_when: "'0 renewals attempted' not in certbot_dry_run_output.stdout"
+
+    - name: Stop nginx if renewal is needed
+      ansible.builtin.service:
+        name: nginx
+        state: stopped
+      when: certbot_dry_run_output.changed
+
+    - name: Renew certificates
+      command: certbot renew
+      register: certbot_renew_output
+      when: certbot_dry_run_output.changed
+
+    - name: Request SSL certs for discovered sites
+      ansible.builtin.command: >
+        certbot certonly --standalone --agree-tos --non-interactive \
+        --no-eff-email --no-redirect \
+        --logs-dir /etc/letsencrypt/logs \
+        -m {{ letsencrypt.letsencrypt_email }} -d {{ item.domain }} \
+      loop: "{{ nginx_hosting.sites }}"
+      register: certbot_output
+      ignore_errors: true
+
+    - name: Start nginx if certificates were renewed
+      ansible.builtin.service:
+        name: nginx
+        state: started
+      when: certbot_renew_output.changed
+
+    - name: Reload Nginx to apply new SSL certificates
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+      when: not certbot_dry_run_output.changed and certbot_output.changed
+
+...

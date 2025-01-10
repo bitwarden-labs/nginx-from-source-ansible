@@ -1,0 +1,58 @@
+# redirect to vault.(domain).me
+
+server {
+  # HTTPS redirect
+  listen 80;
+  server_name {{ item.domain }};
+
+  location / {
+    return 301 https://$server_name$request_uri;
+  }
+}
+
+server {
+  # Backend Service Configuration
+  listen 443 ssl;
+  server_name {{ item.domain }};
+  set $upstream https://{{ item.ip }}:443;
+
+  ssl_certificate /etc/letsencrypt/live/{{ item.domain }}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/{{ item.domain }}/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+  proxy_redirect off;
+
+  real_ip_header X-Forwarded-For;
+
+  client_max_body_size 256m;
+  client_body_buffer_size 128k;
+
+  proxy_connect_timeout 90;
+  proxy_send_timeout 90;
+  proxy_read_timeout 90;
+  proxy_buffers 32 4k;
+
+  location / {
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_pass $upstream;
+  }
+
+  # Specific location block to allow access to admin panel
+  location /admin {
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_pass https://{{ item.domain }}:443/admin;
+  }
+
+  access_log /var/log/nginx/{{ item.domain }}_access.log;
+  error_log /var/log/nginx/{{ item.domain }}_error.log;
+
+}

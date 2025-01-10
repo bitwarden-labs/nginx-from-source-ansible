@@ -1,0 +1,53 @@
+---
+ansible_user: (ansible user)
+ansible_host: 192.168.25.15
+ansible_ssh_private_key_file: (ssh key for terraform)
+
+# machine-setup playbook
+host:
+  vm_hostname: 'nginx-gateway'
+
+network:
+  static_ip: 192.168.25.15
+  cidr: "24"
+  gateway: 192.168.25.254
+  dns1: 9.9.9.9
+  dns2: 1.1.1.1
+
+letsencrypt:
+  letsencrypt_email: "(letsencrypt admin email)"
+  letsencrypt_domain: "(letsencrypt domain)"
+
+# Used in nginx playbook
+nginx_config:
+  nginx_version: "nginx-1.24.0"
+  nginx_sbin_path: "/usr/sbin/nginx"
+  nginx_conf_path: "/etc/nginx/nginx.conf"
+  nginx_custom_modules: "--with-http_realip_module --with-http_ssl_module --with-http_v2_module --pid-path=/run/nginx.pid"
+
+nginx_tarball_url: "http://nginx.org/download/{{ nginx_config.nginx_version }}.tar.gz"
+nginx_install_dir: "/tmp/{{ nginx_config.nginx_version }}"
+
+# Used in nginx-sites playbook
+nginx_hosting:
+  sites:
+    - src: files/(domain)
+      dest: /etc/nginx/sites-available/(domain).conf
+      domain: (domain)
+      ip: "{{ network.static_ip }}"
+      port: 80
+      static-files: true
+    - src: files/vault.(domain)
+      dest: /etc/nginx/sites-available/vault.(domain).conf
+      domain: vault.(domain)
+      ip: 192.168.25.44
+      port: 80
+      static-files: false
+    - src: files/otherservice.(domain)
+      dest: /etc/nginx/sites-available/otherservice.(domain).conf
+      domain: otherservice.(domain)
+      ip: 192.168.25.16
+      port: 80
+      static-files: false
+
+...

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Ensure logs directory exists
+mkdir -p /etc/letsencrypt/logs
+
+{% for site in nginx_hosting.sites %}
+# Request cert for {{ site.domain }}
+certbot certonly --standalone --agree-tos --non-interactive \
+  --no-eff-email --no-redirect \
+  --logs-dir /etc/letsencrypt/logs \
+  -m {{ letsencrypt.letsencrypt_email }} -d {{ site.domain }}
+{% endfor %}

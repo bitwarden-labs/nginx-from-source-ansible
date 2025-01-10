@@ -1,0 +1,17 @@
+---
+- name: Configure letsencrypt permissions for nginx user
+  become: true
+  block:
+    - name: Ensure letsencrypt group exists
+      ansible.builtin.group:
+        name: letsencrypt
+        state: present
+
+    # nginx runs as www-data
+    - name: Add www-data user to letsencrypt group
+      ansible.builtin.user:
+        name: www-data
+        groups: letsencrypt
+        append: true
+
+...

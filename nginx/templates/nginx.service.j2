@@ -1,0 +1,14 @@
+[Unit]
+Description=A high performance web server and reverse proxy server
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/nginx
+ExecReload=/usr/sbin/nginx -s reload
+PIDFile=/run/nginx.pid
+KillMode=process
+Restart=on-failure
+Type=forking
+
+[Install]
+WantedBy=multi-user.target

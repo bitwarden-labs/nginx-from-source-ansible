@@ -1,0 +1,7 @@
+---
+all:
+  children:
+    nginx:
+      hosts:
+        nginx-gateway:
+...

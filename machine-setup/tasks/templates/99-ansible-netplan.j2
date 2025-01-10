@@ -1,0 +1,14 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth0:
+      dhcp4: false
+      addresses:
+        - {{ network.static_ip }}/{{ network.cidr }}
+      gateway4: {{ network.gateway }}
+      nameservers:
+        addresses:
+          - {{ network.dns1 }}
+          - {{ network.dns2 }}
+      optional: true

@@ -1,0 +1,103 @@
+---
+- name: Set Hostname
+  become: true
+  block:
+  - name: Check hostname
+    ansible.builtin.debug:
+      msg: "{{ host.vm_hostname }}"
+
+  - name: Set hostname
+    ansible.builtin.hostname:
+      name: "{{ host.vm_hostname }}"
+
+  - name: Ensure hostname is present in /etc/hosts
+    ansible.builtin.lineinfile:
+      path: /etc/hosts
+      regexp: '^127\.0\.1\.1\s+'
+      line: "127.0.1.1 {{ host.vm_hostname }}"
+
+- name: Update all packages to latest versions
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+
+- name: Check for Netplan template updates
+  become: true
+  block:
+  - name: Render Netplan template to temp file for comparison
+    ansible.builtin.template:
+      src: ../templates/99-ansible-netplan.j2
+      dest: /tmp/99-ansible-netplan-rendered.yaml
+      owner: root
+      group: root
+      mode: '0600'
+
+  - name: Check if Netplan config exists
+    ansible.builtin.stat:
+      path: /etc/netplan/99-ansible-netplan.yaml
+    register: netplan_file_stat
+
+  - name: Compare current Netplan config with rendered template
+    ansible.builtin.command: 'diff -q /tmp/99-ansible-netplan-rendered.yaml /etc/netplan/99-ansible-netplan.yaml'
+    ignore_errors: true
+    register: netplan_diff_check
+    when: netplan_file_stat.stat.exists
+
+- name: Inspect variables
+  # Logic to apply netplan template only when there's a change defined in ansible
+  # or the netplan template is absent from /etc/netplan on the target
+  block:
+  - name: Inspect netplan_file_stat
+    ansible.builtin.debug:
+      var: netplan_file_stat.stat.exists
+
+  - name: Inspect netplan_diff_check
+    ansible.builtin.debug:
+      var: netplan_diff_check.rc
+
+- name: Set Network config
+  become: true
+  block:
+    - name: Create custom Netplan config
+      ansible.builtin.template:
+        src: templates/99-ansible-netplan.j2
+        dest: /etc/netplan/99-ansible-netplan.yaml
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Apply new Netplan configuration
+      ansible.builtin.command: netplan apply
+
+    - name: Wait for network changes to take effect
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Reset connection to the new IP
+      meta: reset_connection
+
+    - name: Update inventory to use new IP address
+      set_fact:
+        ansible_host: "{{ network.static_ip }}"
+
+    - name: Wait for host to become reachable at the new IP
+      ansible.builtin.wait_for:
+        host: "{{ network.static_ip }}"
+        port: 22
+        delay: 10
+        timeout: 300
+
+    - name: Verify new connection
+      ansible.builtin.ping:
+
+  when:
+    - netplan_file_stat.stat.exists == false or (netplan_diff_check is defined and netplan_diff_check.rc == 1)
+
+- name: Clean up temporary files
+  become: true
+  ansible.builtin.file:
+    path: /tmp/99-ansible-netplan-rendered.yaml
+    state: absent
+
+...

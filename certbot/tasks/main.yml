@@ -1,0 +1,78 @@
+---
+- name: Install and configure certbot
+  become: true
+  block:
+    - name: Install Certbot
+      ansible.builtin.apt:
+        name: certbot
+        state: present
+      when: ansible_os_family == 'Debian'
+
+- name: Prepare certbot config
+  become: true
+  block:
+    - name: Create letsencrypt directory
+      ansible.builtin.file:
+        name: /var/www/letsencrypt
+        state: directory
+
+    - name: Create certbot directory
+      ansible.builtin.file:
+        name: /root/certbot/
+        state: directory
+
+
+    - name: Generate get-certs.sh
+      ansible.builtin.template:
+        src: ../templates/get-certs.j2
+        dest: /root/certbot/get-certs.sh
+        owner: root
+        group: root
+        mode: "0700"
+
+- name: Check and generate DH params for letsencrypt
+  become: true
+  block:
+    - name: Check if ssl-dhparams.pem already exists
+      ansible.builtin.stat:
+        path: /etc/letsencrypt/ssl-dhparams.pem
+      register: dhparams_file
+
+    - name: Generate DH params if not already present
+      ansible.builtin.command:
+        cmd: "openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048"
+      when: not dhparams_file.stat.exists
+
+    - name: Set correct permissions for ssl-dhparams.pem
+      ansible.builtin.file:
+        path: /etc/letsencrypt/ssl-dhparams.pem
+        owner: root
+        group: letsencrypt
+        mode: "0644"
+
+- name: Prepare renewal config
+  become: true
+  block:
+    - name: Configure systemd timer
+      ansible.builtin.copy:
+        src: ../files/certbot.timer
+        dest: /etc/systemd/system/certbot.timer
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure certbot service
+      ansible.builtin.copy:
+        src: ../files/certbot.service
+        dest: /etc/systemd/system/certbot.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable certbot.timer is started and enabled on boot
+      ansible.builtin.systemd:
+        name: certbot.timer
+        state: started
+        enabled: true
+
+...

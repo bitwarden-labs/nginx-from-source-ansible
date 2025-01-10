@@ -1,0 +1,12 @@
+---
+- name: Deploy nginx gateway for (domain)
+  hosts: nginx-gateway
+  roles:
+    - machine-setup
+    - users-groups
+    - certbot
+    - nginx
+    - nginx-sites
+    - static-files
+
+...
