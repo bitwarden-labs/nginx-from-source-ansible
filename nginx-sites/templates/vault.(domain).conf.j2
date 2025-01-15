@@ -1,4 +1,4 @@
-# redirect to vault.(domain).me
+# redirect to vault.bramley.me
 
 server {
   # HTTPS redirect
@@ -16,9 +16,10 @@ server {
   server_name {{ item.domain }};
   set $upstream https://{{ item.ip }}:443;
 
+  include /etc/nginx/conf.d/options-ssl-nginx.conf;
+
   ssl_certificate /etc/letsencrypt/live/{{ item.domain }}/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/{{ item.domain }}/privkey.pem;
-  include /etc/letsencrypt/options-ssl-nginx.conf;
   ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
   proxy_redirect off;

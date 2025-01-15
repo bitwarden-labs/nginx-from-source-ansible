@@ -8,60 +8,145 @@
   with_items: "{{ nginx_hosting.sites }}"
   when: item['static-files'] == false
 
-- name: Discover websites in /etc/nginx/sites-available
+- name: Configure nginx with sites-enabled
+  become: true
+  block:
+    - name: Create sites-available directory
+      ansible.builtin.file:
+        dest: /etc/nginx/sites-available
+        state: directory
+        owner: root
+        mode: "0755"
+
+    - name: Create /etc/nginx/sites-enabled
+      ansible.builtin.file:
+        dest: /etc/nginx/sites-enabled
+        state: directory
+        owner: root
+        mode: "0755"
+
+    - name: Deploy nginx config files for all sites
+      ansible.builtin.template:
+        src: "templates/{{ item.domain }}.conf.j2"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: "{{ nginx_hosting.sites }}"
+
+    - name: Set symlinks for nginx sites in sites-enabled
+      ansible.builtin.file:
+        src: "{{ item.dest }}"
+        dest: "/etc/nginx/sites-enabled/{{ item.dest | basename }}"
+        state: link
+        force: true
+      loop: "{{ nginx_hosting.sites }}"
+
+- name: Check which certs need generating
   become: true
   block:
     - name: Collect sites
       ansible.builtin.find:
-        paths: /etc/nginx/sites-available
+        paths: /etc/nginx/sites-enabled
         patterns: "*.conf"
-        follow: yes
-        recurse: no
+        file_type: link
+        follow: true
+        recurse: false
       register: nginx_sites
 
-    - name: Show found sites
+    - name: Extract domains from nginx_sites output
+      ansible.builtin.set_fact:
+        domain_names: >-
+          {{ nginx_sites.files | map(attribute='path') | map('basename') | map('regex_replace', '\.conf$', '') | list }}
+
+    - name: Show desired domains for cert registration
       ansible.builtin.debug:
-        msg: "{{ nginx_sites }}"
+        var: domain_names
+
+    - name: Register existing certificates
+      ansible.builtin.find:
+        paths: /etc/letsencrypt/live
+        patterns: "privkey.pem"
+        file_type: link
+        recurse: true
+        follow: true
+      register: existing_certs
+
+    - name: Extract domains from existing_certs output
+      ansible.builtin.set_fact:
+        existing_cert_domains: >-
+          {{
+            existing_certs.files | map(attribute='path') | map('regex_replace', '.*/etc/letsencrypt/live/([^/]+)/privkey.pem', '\1') | list
+          }}
+
+    - name: Show domains of existing certs
+      ansible.builtin.debug:
+        var: existing_cert_domains
+
+    - name: Create list of domains to generate certs for
+      ansible.builtin.set_fact:
+        domains_to_generate: "{{ domain_names | difference(existing_cert_domains) }}"
+
+    - name: Record boolean marking whether new certs require generation
+      ansible.builtin.set_fact:
+        certs_need_generating: "{{ domains_to_generate | length > 0 }}"
+
+    - name: Check domains needing certs
+      ansible.builtin.debug:
+        var: domains_to_generate
+
+    - name: Check whether cert generation will be triggered
+      ansible.builtin.debug:
+        var: certs_need_generating
 
 - name: Manage Let's Encrypt certs for each site
   become: true
   block:
-    - name: Check for certificate renewal
-      ansible.builtin.command: certbot renew --dry-run
-      register: certbot_dry_run_output
-      changed_when: "'0 renewals attempted' not in certbot_dry_run_output.stdout"
-
     - name: Stop nginx if renewal is needed
       ansible.builtin.service:
         name: nginx
         state: stopped
-      when: certbot_dry_run_output.changed
+      when: certs_need_generating | bool
 
-    - name: Renew certificates
-      command: certbot renew
-      register: certbot_renew_output
-      when: certbot_dry_run_output.changed
+    - name: Register nginx_stopped variable
+      ansible.builtin.set_fact:
+        nginx_stopped: true
+      when: certs_need_generating | bool
+
+    - name: debug domains to generate
+      ansible.builtin.debug:
+        var: domains_to_generate
 
     - name: Request SSL certs for discovered sites
       ansible.builtin.command: >
         certbot certonly --standalone --agree-tos --non-interactive \
         --no-eff-email --no-redirect \
         --logs-dir /etc/letsencrypt/logs \
-        -m {{ letsencrypt.letsencrypt_email }} -d {{ item.domain }} \
-      loop: "{{ nginx_hosting.sites }}"
+        -m {{ letsencrypt.letsencrypt_email }} -d {{ item }} \
+      loop: "{{ domains_to_generate }}"
+      loop_control:
+        label: "{{ item }}"
       register: certbot_output
       ignore_errors: true
+
+    - name: Log certbot results
+      ansible.builtin.debug:
+        msg: |
+          Certbot output for {{ item.item }}
+          stdout: {{ item.stdout }}
+          stderr: {{ item.stderr }}
+      with_items: "{{ certbot_output.results }}"
 
     - name: Start nginx if certificates were renewed
       ansible.builtin.service:
         name: nginx
         state: started
-      when: certbot_renew_output.changed
+      when: nginx_stopped | default(false) | bool
 
     - name: Reload Nginx to apply new SSL certificates
       ansible.builtin.service:
         name: nginx
         state: reloaded
-      when: not certbot_dry_run_output.changed and certbot_output.changed
+      when: nginx_stopped | default(false) | bool and certbot_output.changed
 
 ...
