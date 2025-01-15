@@ -1,25 +1,27 @@
 ---
-- name: Ensure site directory exists on server
-  become: true
-  ansible.builtin.file:
-    path: "/var/www/{{ item.domain }}"
-    state: directory
-    owner: www-data
-    group: www-data
-    mode: '0755'
-  loop: "{{ nginx_hosting.sites }}"
-  when: item['static-files'] == true
+- name: Add static files in /var/www for site
+  block:
+  - name: Ensure site directory exists on server
+    become: true
+    ansible.builtin.file:
+      path: "/var/www/{{ item.domain }}"
+      state: directory
+      owner: www-data
+      group: www-data
+      mode: '0755'
+    loop: "{{ nginx_hosting.sites }}"
 
-- name: Copy static content to site directory
-  become: true
-  ansible.builtin.copy:
-    src: "./files/"
-    dest: "/var/www/{{ item.domain }}"
-    owner: www-data
-    group: www-data
-    mode: '0644'
-    directory_mode: '0755'
-  loop: "{{ nginx_hosting.sites }}"
+  - name: Copy static content to site directory
+    become: true
+    ansible.builtin.copy:
+      src: "./files/"
+      dest: "/var/www/{{ item.domain }}"
+      owner: www-data
+      group: www-data
+      mode: '0644'
+      directory_mode: '0755'
+    loop: "{{ nginx_hosting.sites }}"
+
   when: item['static-files'] == true
 
 ...
