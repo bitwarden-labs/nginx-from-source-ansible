@@ -1,8 +1,9 @@
 ---
-# - name: Delete default nginx config
-#   ansible.builtin.file:
-#     name: /etc/nginx/sites-enabled
-#     state: absent
+- name: Delete default nginx config
+  become: true
+  ansible.builtin.file:
+    name: /etc/nginx/sites-enabled
+    state: absent
 
 - name: Compile nginx from source
   become: true
@@ -45,10 +46,13 @@
     - name: Create nginx directories
       become: true
       ansible.builtin.file:
-        path: /etc/nginx
+        path: "{{ item }}"
         state: directory
         owner: root
         mode: "0755"
+      loop:
+      - /etc/nginx
+      - /etc/nginx/conf.d
 
     - name: Configure nginx source with custom modules
       ansible.builtin.command: "./configure --sbin-path={{ nginx_config.nginx_sbin_path }} --conf-path={{ nginx_config.nginx_conf_path }} {{ nginx_config.nginx_custom_modules }}"
@@ -177,79 +181,30 @@
         src: ../files/nginx.conf
         dest: /etc/nginx/nginx.conf
 
-- name: Configure nginx with sites-enabled
-  become: true
-  block:
-    - name: Create sites-available directory
-      ansible.builtin.file:
-        dest: /etc/nginx/sites-available
-        state: directory
-        owner: root
-        mode: '0755'
-
-    - name: Create /etc/nginx/sites-enabled
-      ansible.builtin.file:
-        dest: /etc/nginx/sites-enabled
-        state: directory
-        owner: root
-        mode: '0755'
-
     - name: Deploy /etc/letsencrypt/options-ssl-nginx.conf file
       ansible.builtin.copy:
         src: ../files/options-ssl-nginx.conf
-        dest: /etc/letsencrypt/options-ssl-nginx.conf
+        dest: /etc/nginx/conf.d/options-ssl-nginx.conf
         owner: root
         group: root
         mode: '0755'
 
-    - name: Deploy nginx config file for (domain)
-      ansible.builtin.template:
-        src: templates/(domain).me.conf.j2
-        dest: "{{ item.dest }}"
-        owner: root
-        group: root
-        mode: '0644'
-      loop: "{{ nginx_hosting.sites }}"
-      when: item.domain == '(domain).me'
+    - name: Test nginx configuration
+      ansible.builtin.command: "/usr/sbin/nginx -t"
+      register: nginx_test
+      failed_when: 
+        - nginx_test.rc != 0
+        - "'syntax is ok' not in nginx_test.stderr"
+        - "'test is successful' not in nginx_test.stderr"
 
-    - name: Deploy nginx config file for otherservice.(domain).me
-      ansible.builtin.template:
-        src: templates/otherservice.(domain).me.conf.j2
-        dest: "{{ item.dest }}"
-        owner: root
-        group: root
-        mode: '0644'
-      loop: "{{ nginx_hosting.sites }}"
-      when: item.domain == 'otherservice.(domain).me'
+    - name: Debug nginx test results
+      ansible.builtin.debug:
+        var: nginx_test
 
-    - name: Deploy nginx config file for vault.(domain).me
-      ansible.builtin.template:
-        src: templates/vault.(domain).me.conf.j2
-        dest: "{{ item.dest }}"
-        owner: root
-        group: root
-        mode: '0644'
-      loop: "{{ nginx_hosting.sites }}"
-      when: item.domain == 'vault.(domain).me'
-
-    - name: Set symlinks for nginx sites in sites-enabled
-      ansible.builtin.file:
-        src: "{{ item.dest }}"
-        dest: "/etc/nginx/sites-enabled/{{ item.dest | basename }}"
-        state: link
-        force: true
-      loop: "{{ nginx_hosting.sites }}"
-
-    # - name: Test nginx configuration
-    #   ansible.builtin.command: "/usr/sbin/nginx -t"
-    #   register: nginx_test
-    #   failed_when: "'successful' not in nginx_test.stdout"
-
-    # - name: Reload nginx if configuration is valid
-    #   ansible.builtin.service:
-    #     name: nginx
-    #     state: reloaded
-    #   when: nginx_test.rc == 0
-
+    - name: Reload nginx if configuration is valid
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+      when: nginx_test.rc == 0
 
 ...
