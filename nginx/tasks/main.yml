@@ -181,13 +181,20 @@
         src: ../files/nginx.conf
         dest: /etc/nginx/nginx.conf
 
-    - name: Deploy /etc/letsencrypt/options-ssl-nginx.conf file
+    - name: Deploy letsencrypt config for certbot renewals
+      ansible.builtin.copy:
+        src: ../files/letsencrypt.conf
+        dest: /etc/nginx/conf.d/letsencrypt.conf
+
+    - name: Deploy /etc/nginx/conf.d/options-ssl-nginx.conf file
       ansible.builtin.copy:
         src: ../files/options-ssl-nginx.conf
         dest: /etc/nginx/conf.d/options-ssl-nginx.conf
         owner: root
         group: root
         mode: '0755'
+      notify:
+        - Restart nginx
 
     - name: Test nginx configuration
       ansible.builtin.command: "/usr/sbin/nginx -t"
