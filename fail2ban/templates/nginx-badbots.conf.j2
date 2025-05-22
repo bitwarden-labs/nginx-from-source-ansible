@@ -1,0 +1,31 @@
+[Definition]
+failregex = <HOST> -.*"(GET|POST).*HTTP.*"(?:bot|crawl|spider|scanner|scraper|sqlmap|nmap|dirbuster|wpscan)"
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:wp-login|xmlrpc|wp-cron|wp-content|wp-includes|wp-admin|xmlrpc.php)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/phpmyadmin|/pma|/sqlmanager|/dbadmin|/dbexplorer|/mysqlmanager)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/administrator|/admin|/login|/user|/auth)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/cgi-bin|/cgi-sys)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/shell|/cmd|/command)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/uploads|/upload)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/backup)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/config)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/etc/passwd)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/etc/shadow)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/etc/hosts)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/etc/group)
+            <HOST> -.*"(GET|POST).*HTTP.*"(?:/etc/nginx)
+            <HOST> -.*"GET .* HTTP.*" 404
+ignoreregex = .*"Googlebot/.*"  # Ignore Googlebot
+            .*"Bingbot/.*"  # Ignore Bingbot
+            .*"Slurp/.*"  # Ignore Yahoo Slurp
+            .*"DuckDuckBot/.*"  # Ignore DuckDuckGo Bot
+            .*"Exabot/.*"  # Ignore Exabot
+            .*"ia_archiver/.*"  # Ignore Alexa Internet Archive
+            .*"AhrefsBot/.*"  # Ignore Ahrefs Bot
+            .*"MJ12bot/.*"  # Ignore Majestic-12 Bot
+            .*"SEMrushBot/.*"  # Ignore SEMrush Bot
+            .*"DotBot/.*"  # Ignore Moz DotBot
+            .*"BLEXBot/.*"  # Ignore BLEXBot
+            .*"LinkpadBot/.*"  # Ignore Linkpad Bot
+            .*"NetcraftSurveyAgent/.*"  # Ignore Netcraft Survey Agent
+            .*"Mozilla/.*"  # Ignore legitimate browsers
+            .*"curl/.*"  # Ignore curl
