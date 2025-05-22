@@ -1,0 +1,63 @@
+---
+- name: Define temp file paths
+  ansible.builtin.set_fact:
+    node_exporter_temp_tar: "/tmp/node_exporter-{{ node_exporter.node_exporter_version }}.linux-amd64.tar.gz"
+    node_exporter_temp_dir: "/tmp/node_exporter-{{ node_exporter.node_exporter_version }}.linux-amd64"
+
+- name: Download and install node exporter binary
+  become: true
+  block:
+    - name: Download node exporter
+      ansible.builtin.get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter.node_exporter_version }}/node_exporter-{{ node_exporter.node_exporter_version }}.linux-amd64.tar.gz
+        dest: "{{ node_exporter_temp_tar }}"
+      register: node_exporter_download
+
+    - name: Unarchive node exporter
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "{{ node_exporter_download.dest }}"
+        dest: /tmp
+      register: node_exporter_unarchive
+
+    - name: Debug node_exporter_unarchive
+      ansible.builtin.debug:
+        var: node_exporter_unarchive
+
+    - name: Move node exporter to /usr/local/bin
+      ansible.builtin.copy:
+        src: "{{ node_exporter_temp_dir }}/node_exporter"
+        dest: /usr/local/bin/
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+
+- name: Configure systemd
+  become: true
+  block:
+    - name: Install unit file to systemd
+      ansible.builtin.template:
+        src: templates/node_exporter.service.j2
+        dest: /etc/systemd/system/node_exporter.service
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Configure systemd to use service
+      ansible.builtin.systemd:
+        daemon_reload: true
+        enabled: true
+        state: started
+        name: node_exporter.service
+
+- name: Cleanup temporary files
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ node_exporter_temp_tar }}"
+    - "{{ node_exporter_temp_dir }}"
+
+...
