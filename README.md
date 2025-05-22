@@ -57,6 +57,14 @@ This role contains the static files to be served directly from the server, as we
 
 This role contains plays to ensure that correct users are present on the server, and in particular that the www-data user used by nginx has access to the letsencrypt certificates as part of the letsencrypt group.
 
+### node-exporter
+
+This role contains plays to perform a basic installation of node-exporter for monitoring.
+
+### fail2ban
+
+This role contains plays to perform a basic installation of fail2ban, tailored to the nginx reverse-proxy service.
+
 ## Dependancies
 
 This role is tested on Debian 12, but should work on any distribution using apt and systemd.
