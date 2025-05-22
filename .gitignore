@@ -1,4 +1,5 @@
 .DS_Store
+.ansible
 
 # Incomplete roles should be kept in the to-do folder until ready for release
 to-do
